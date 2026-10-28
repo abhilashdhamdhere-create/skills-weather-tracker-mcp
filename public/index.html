@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Weather Tracker</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #172033;
+        background: #f3f6fb;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; }
+      main { width: min(1120px, calc(100% - 32px)); margin: 40px auto; }
+      h1 { margin: 0 0 8px; }
+      .subtle, .status { color: #5c667a; }
+      .panel { margin-top: 24px; padding: 22px; background: white; border-radius: 14px; box-shadow: 0 4px 18px #1720330b; }
+      form { display: flex; gap: 12px; }
+      input { flex: 1; min-width: 0; padding: 12px 14px; border: 1px solid #cbd3df; border-radius: 8px; font: inherit; }
+      button { padding: 12px 18px; border: 0; border-radius: 8px; color: white; background: #2457d6; font: inherit; font-weight: 650; cursor: pointer; }
+      button:disabled { opacity: .65; cursor: wait; }
+      .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; }
+      .card { padding: 16px; border: 1px solid #e2e8f0; border-radius: 10px; }
+      .card h3 { margin: 0 0 10px; }
+      .card p { margin: 5px 0; color: #5c667a; }
+      .chart-wrap { height: 300px; }
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; text-align: left; }
+      th, td { padding: 11px 12px; border-bottom: 1px solid #e8edf4; white-space: nowrap; }
+      th { color: #5c667a; font-size: .85rem; }
+      .status { min-height: 1.5em; margin: 10px 0 0; }
+      @media (max-width: 560px) {
+        main { margin: 24px auto; }
+        form { flex-direction: column; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Weather Tracker</h1>
+        <div class="subtle">Current conditions and saved weather observations.</div>
+      </header>
+
+      <section class="panel" aria-labelledby="refresh-title">
+        <h2 id="refresh-title">Add a city</h2>
+        <form id="refresh-form">
+          <input id="city" name="city" placeholder="Enter a city, e.g. London" required>
+          <button id="refresh-button" type="submit">Add / Refresh</button>
+        </form>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </section>
+
+      <section class="panel" aria-labelledby="summary-title">
+        <h2 id="summary-title">City summaries</h2>
+        <div id="summary" class="cards"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="chart-title">
+        <h2 id="chart-title">Temperature history</h2>
+        <div class="chart-wrap"><canvas id="temperature-chart" aria-label="Temperature history chart"></canvas></div>
+      </section>
+
+      <section class="panel" aria-labelledby="logs-title">
+        <h2 id="logs-title">Recent logs</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>City</th><th>Country</th><th>Temperature</th><th>Humidity</th><th>Wind</th><th>Condition</th><th>Logged at</th></tr>
+            </thead>
+            <tbody id="logs"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script>
+      const statusText = document.querySelector("#status");
+      const form = document.querySelector("#refresh-form");
+      const refreshButton = document.querySelector("#refresh-button");
+      let temperatureChart;
+
+      // Creates a text-only table cell to avoid interpreting API values as HTML.
+      function addCell(row, value) {
+        const cell = document.createElement("td");
+        cell.textContent = value ?? "—";
+        row.append(cell);
+      }
+
+      // Loads recent records and refreshes the table and temperature chart.
+      async function loadLogs() {
+        const response = await fetch("/api/logs");
+        if (!response.ok) throw new Error("Could not load recent logs.");
+        const { logs } = await response.json();
+        const body = document.querySelector("#logs");
+        body.replaceChildren();
+        logs.forEach((log) => {
+          const row = document.createElement("tr");
+          addCell(row, log.city);
+          addCell(row, log.country);
+          addCell(row, log.temperature_c === null ? "—" : `${log.temperature_c.toFixed(1)} °C`);
+          addCell(row, log.humidity === null ? "—" : `${log.humidity}%`);
+          addCell(row, log.wind_kmh === null ? "—" : `${log.wind_kmh.toFixed(1)} km/h`);
+          addCell(row, log.condition);
+          addCell(row, log.created_at);
+          body.append(row);
+        });
+
+        const chartLogs = [...logs].reverse().filter((log) => log.temperature_c !== null);
+        if (temperatureChart) temperatureChart.destroy();
+        temperatureChart = new Chart(document.querySelector("#temperature-chart"), {
+          type: "line",
+          data: {
+            labels: chartLogs.map((log) => `${log.city} · ${log.created_at}`),
+            datasets: [{
+              label: "Temperature (°C)",
+              data: chartLogs.map((log) => log.temperature_c),
+              borderColor: "#2457d6",
+              backgroundColor: "#2457d622",
+              pointBackgroundColor: "#2457d6",
+              tension: 0.25,
+              fill: true,
+            }],
+          },
+          options: { responsive: true, maintainAspectRatio: false },
+        });
+      }
+
+      // Loads per-city counts and temperature summaries.
+      async function loadSummary() {
+        const response = await fetch("/api/summary");
+        if (!response.ok) throw new Error("Could not load city summaries.");
+        const { summary } = await response.json();
+        const container = document.querySelector("#summary");
+        container.replaceChildren();
+        summary.forEach((city) => {
+          const card = document.createElement("article");
+          card.className = "card";
+          const title = document.createElement("h3");
+          title.textContent = city.country ? `${city.city}, ${city.country}` : city.city;
+          card.append(title);
+          const details = [
+            `Latest: ${city.latest_temperature === null ? "—" : `${city.latest_temperature.toFixed(1)} °C`}`,
+            `Average: ${city.average_temperature === null ? "—" : `${city.average_temperature.toFixed(1)} °C`}`,
+            `Logs: ${city.log_count}`,
+          ];
+          details.forEach((text) => {
+            const line = document.createElement("p");
+            line.textContent = text;
+            card.append(line);
+          });
+          container.append(card);
+        });
+        if (summary.length === 0) {
+          const empty = document.createElement("p");
+          empty.className = "subtle";
+          empty.textContent = "No weather logs yet. Add a city to get started.";
+          container.append(empty);
+        }
+      }
+
+      // Refreshes a city's weather and reloads all dashboard data.
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const city = document.querySelector("#city").value.trim();
+        if (!city) return;
+        refreshButton.disabled = true;
+        statusText.textContent = `Fetching weather for ${city}…`;
+        try {
+          const response = await fetch(`/api/refresh?city=${encodeURIComponent(city)}`, { method: "POST" });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error ?? "Could not refresh weather.");
+          statusText.textContent = result.message;
+          await Promise.all([loadLogs(), loadSummary()]);
+        } catch (error) {
+          statusText.textContent = error.message || "Could not refresh weather.";
+        } finally {
+          refreshButton.disabled = false;
+        }
+      });
+
+      // Loads dashboard content and reports any initial data errors.
+      Promise.all([loadLogs(), loadSummary()]).catch((error) => {
+        statusText.textContent = error.message || "Could not load the dashboard.";
+      });
+    </script>
+  </body>
+</html>

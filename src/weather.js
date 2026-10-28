@@ -1,6 +1,11 @@
 const GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search";
 const FORECAST_URL = "https://api.open-meteo.com/v1/forecast";
 
+// Waits briefly before retrying a transient connection failure.
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 // Maps Open-Meteo WMO weather codes to readable condition labels.
 export function describeWeatherCode(code) {
   if (code === 0) return "Clear";
@@ -23,10 +28,23 @@ export function describeWeatherCode(code) {
 // Requests JSON from Open-Meteo and reports network, HTTP, or JSON errors clearly.
 async function fetchJson(url) {
   let response;
-  try {
-    response = await fetch(url);
-  } catch {
-    throw new Error("Could not reach Open-Meteo. Check your internet connection and try again.");
+  let networkError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      break;
+    } catch (error) {
+      networkError = error;
+      if (attempt < 3) await wait(attempt * 300);
+    }
+  }
+  if (!response) {
+    const code = networkError?.cause?.code ?? networkError?.code;
+    const reason = code ?? (networkError?.name === "TimeoutError" ? "request timed out" : "network error");
+    throw new Error(
+      `Could not connect to Open-Meteo (${url.hostname}: ${reason}). ` +
+        "Check outbound internet access and try again.",
+    );
   }
   if (!response.ok) {
     throw new Error(`Open-Meteo returned HTTP ${response.status}. Please try again later.`);

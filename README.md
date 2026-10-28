@@ -62,6 +62,17 @@ then records the observation in `weather_logs`. `list` shows the most recent
 logs (10 by default), and `stats` reports the recorded minimum, maximum, and
 average temperature and log count for a city.
 
+### Weather dashboard
+
+Start the dashboard with `npm start`, then open
+[http://localhost:3000](http://localhost:3000). It displays recent logs,
+per-city summaries, and a temperature chart. Enter a city and choose
+**Add / Refresh** to fetch and save its current weather.
+
+The JSON endpoints are `GET /api/logs` (latest 50 records),
+`GET /api/summary` (per-city latest and average temperature and log count), and
+`POST /api/refresh?city=NAME` (fetches and stores a new observation).
+
 ### How to start this exercise
 
 1. Click the button below to copy this exercise to your account. Keep the repository **public**, then click **Create repository**.
