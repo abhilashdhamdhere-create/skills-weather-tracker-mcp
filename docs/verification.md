@@ -1,6 +1,7 @@
 # Weather database verification
 
-Checked the current `weather.db` contents with a read-only SQLite connection.
+Checked every row in the `weather_logs` table in `weather.db` with a read-only
+SQLite connection.
 SQLite MCP tools were not callable in this chat session, so these results were
 not obtained through MCP.
 
