@@ -37,6 +37,31 @@ You ──prompt──▶ Copilot Agent Mode
 | 3 | Build the CLI, open a pull request | ~12 min |
 | 4 | Dashboard, verify with MCP, merge | ~12 min |
 
+### Weather CLI
+
+Install dependencies with `npm install`. The CLI reads and writes `weather.db`
+in the repository root.
+
+```sh
+npm run add -- "London"
+npm run list
+npm run list -- --limit 5
+npm run stats -- "London"
+```
+
+You can also run the commands directly with Node:
+
+```sh
+node src/cli.js add "Tokyo"
+node src/cli.js list --limit 5
+node src/cli.js stats "Tokyo"
+```
+
+`add` fetches the city's coordinates and current weather from Open-Meteo,
+then records the observation in `weather_logs`. `list` shows the most recent
+logs (10 by default), and `stats` reports the recorded minimum, maximum, and
+average temperature and log count for a city.
+
 ### How to start this exercise
 
 1. Click the button below to copy this exercise to your account. Keep the repository **public**, then click **Create repository**.
